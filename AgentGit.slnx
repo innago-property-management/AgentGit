@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentGit/AgentGit.csproj" />
+  </Folder>
+</Solution>
