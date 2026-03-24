@@ -58,6 +58,7 @@ var commitInfo = new ProcessStartInfo
 };
 
 commitInfo.ArgumentList.Add("commit");
+commitInfo.ArgumentList.Add("--no-gpg-sign");
 foreach (string arg in commitArgs)
 {
     commitInfo.ArgumentList.Add(arg);

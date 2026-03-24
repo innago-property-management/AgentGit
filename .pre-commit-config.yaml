@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ledger-add
+        name: Ledger add
+        entry: ledger-add.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+      - id: ledger-finalize
+        name: Ledger finalize
+        entry: ledger-finalize.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+        stages: [post-commit]
