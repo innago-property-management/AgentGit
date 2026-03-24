@@ -84,15 +84,33 @@ var pushInfo = new ProcessStartInfo
     },
 };
 
+string currentBranch = GetCurrentBranch(repoPath);
 string pushUrl = $"https://x-access-token:{token}@github.com/{owner}/{repo}.git";
 
 pushInfo.ArgumentList.Add("push");
 pushInfo.ArgumentList.Add(pushUrl);
-pushInfo.ArgumentList.Add("main");
+pushInfo.ArgumentList.Add(currentBranch);
 
 using Process? process = Process.Start(pushInfo);
 process?.WaitForExit();
 return;
+
+static string GetCurrentBranch(string repoPath)
+{
+    var psi = new ProcessStartInfo("git")
+    {
+        WorkingDirectory = repoPath,
+        RedirectStandardOutput = true,
+        UseShellExecute = false,
+    };
+
+    psi.ArgumentList.Add("rev-parse");
+    psi.ArgumentList.Add("--abbrev-ref");
+    psi.ArgumentList.Add("HEAD");
+
+    using Process? process = Process.Start(psi);
+    return process?.StandardOutput.ReadToEnd().Trim() ?? "main";
+}
 
 static string GetRemoteUrl(string repoPath)
 {
