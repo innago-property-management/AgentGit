@@ -14,3 +14,10 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [post-commit]
+      - id: ledger-rewrite
+        name: Ledger rewrite
+        entry: ledger-rewrite.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+        stages: [post-rewrite]
