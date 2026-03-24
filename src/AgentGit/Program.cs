@@ -1,51 +1,67 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
-using GitHubJwt;
+using AgentGit;
+
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 using Octokit;
 
-int appId = int.Parse(Environment.GetEnvironmentVariable("GH_APP_ID") ?? "3167794");
-long installId = long.Parse(Environment.GetEnvironmentVariable("GH_INSTALL_ID") ?? "118505573");
-string privateKeyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "/Users/christopheranderson/Downloads/stand-sure-ai.2026-03-23.private-key.pem");
+HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
-var privateKeySource = new FilePrivateKeySource(privateKeyPath);
+builder.Services
+    .AddOptions<GitHubAppSettings>()
+    .BindConfiguration(GitHubAppSettings.SectionName)
+    .ValidateOnStart();
 
-var generator = new GitHubJwtFactory(privateKeySource,
-    new GitHubJwtFactoryOptions { AppIntegrationId = appId, ExpirationSeconds = TimeSpan.FromMinutes(10).Seconds });
+using IHost host = builder.Build();
 
-string? jwt = generator.CreateEncodedJwtToken();
+GitHubAppSettings settings = host.Services.GetRequiredService<IOptions<GitHubAppSettings>>().Value;
+
+string jwt = GenerateGitHubJwt(settings.ClientId, settings.PrivateKeyPath);
 
 var appClient = new GitHubClient(new ProductHeaderValue("Agent-Fleet-Manager"))
 {
     Credentials = new Credentials(jwt, AuthenticationType.Bearer),
 };
 
-AccessToken? response = await appClient.GitHubApps.CreateInstallationToken(installId);
+string repoPath = Environment.GetEnvironmentVariable("AGENT_GIT_REPO")
+    ?? Directory.GetCurrentDirectory();
+
+string rawUrl = GetRemoteUrl(repoPath);
+(string owner, string repo) = ParseOwnerRepo(rawUrl);
+
+Installation installation = await appClient.GitHubApps.GetRepositoryInstallationForCurrent(owner, repo);
+AccessToken? response = await appClient.GitHubApps.CreateInstallationToken(installation.Id);
 string token = response.Token;
 
-const string agentName = "stand-sure-ai";
-string repoPath = Directory.GetCurrentDirectory();
-
-string commitMessage = args[1];
-
-commitMessage = string.IsNullOrWhiteSpace(commitMessage) ? "Agent update" : commitMessage;
+string[] commitArgs = args.Length > 0 ? args : ["-m", "Agent update"];
 
 var commitInfo = new ProcessStartInfo
 {
     FileName = "git",
-    Arguments = $"commit -m \"{commitMessage}\"",
     WorkingDirectory = repoPath,
     UseShellExecute = false,
     RedirectStandardOutput = true,
     EnvironmentVariables =
     {
-        ["GIT_AUTHOR_NAME"] = $"{agentName}[bot]",
-        ["GIT_AUTHOR_EMAIL"] = $"{appId}+{agentName}[bot]@users.noreply.github.com",
-        ["GIT_COMMITTER_NAME"] = $"{agentName}[bot]",
-        ["GIT_COMMITTER_EMAIL"] = $"{appId}+{agentName}[bot]@users.noreply.github.com",
+        ["GIT_AUTHOR_NAME"] = $"{settings.AgentName}[bot]",
+        ["GIT_AUTHOR_EMAIL"] = $"{settings.AppId}+{settings.AgentName}[bot]@users.noreply.github.com",
+        ["GIT_COMMITTER_NAME"] = $"{settings.AgentName}[bot]",
+        ["GIT_COMMITTER_EMAIL"] = $"{settings.AppId}+{settings.AgentName}[bot]@users.noreply.github.com",
         ["GIT_ASKPASS"] = "echo",
     },
 };
+
+commitInfo.ArgumentList.Add("commit");
+foreach (string arg in commitArgs)
+{
+    commitInfo.ArgumentList.Add(arg);
+}
 
 using (Process? commitProcess = Process.Start(commitInfo))
 {
@@ -55,38 +71,24 @@ using (Process? commitProcess = Process.Start(commitInfo))
 var pushInfo = new ProcessStartInfo
 {
     FileName = "git",
-    Arguments = "push origin main",
     WorkingDirectory = repoPath,
     UseShellExecute = false,
     RedirectStandardOutput = true,
     EnvironmentVariables =
     {
-        ["GIT_AUTHOR_NAME"] = $"{agentName}[bot]",
-        ["GIT_AUTHOR_EMAIL"] = $"{appId}+{agentName}[bot]@users.noreply.github.com",
-        ["GIT_COMMITTER_NAME"] = $"{agentName}[bot]",
-        ["GIT_COMMITTER_EMAIL"] = $"{appId}+{agentName}[bot]@users.noreply.github.com",
+        ["GIT_AUTHOR_NAME"] = $"{settings.AgentName}[bot]",
+        ["GIT_AUTHOR_EMAIL"] = $"{settings.AppId}+{settings.AgentName}[bot]@users.noreply.github.com",
+        ["GIT_COMMITTER_NAME"] = $"{settings.AgentName}[bot]",
+        ["GIT_COMMITTER_EMAIL"] = $"{settings.AppId}+{settings.AgentName}[bot]@users.noreply.github.com",
         ["GIT_ASKPASS"] = "echo",
     },
 };
 
-string rawUrl = GetRemoteUrl(repoPath);
+string pushUrl = $"https://x-access-token:{token}@github.com/{owner}/{repo}.git";
 
-string pushUrl = rawUrl;
-
-if (rawUrl.Contains("github.com"))
-{
-    string[] parts = rawUrl.Split("github.com/");
-
-    if (parts.Length < 2)
-    {
-        parts = rawUrl.Split("github.com:");
-    }
-
-    string repoPathPart = parts[1];
-    pushUrl = $"https://x-access-token:{token}@github.com/{repoPathPart}";
-}
-
-pushInfo.Arguments = $"push {pushUrl} main";
+pushInfo.ArgumentList.Add("push");
+pushInfo.ArgumentList.Add(pushUrl);
+pushInfo.ArgumentList.Add("main");
 
 using Process? process = Process.Start(pushInfo);
 process?.WaitForExit();
@@ -94,13 +96,63 @@ return;
 
 static string GetRemoteUrl(string repoPath)
 {
-    var psi = new ProcessStartInfo("git", "remote get-url origin")
+    var psi = new ProcessStartInfo("git")
     {
         WorkingDirectory = repoPath,
         RedirectStandardOutput = true,
         UseShellExecute = false,
     };
 
+    psi.ArgumentList.Add("remote");
+    psi.ArgumentList.Add("get-url");
+    psi.ArgumentList.Add("origin");
+
     using Process? process = Process.Start(psi);
     return process?.StandardOutput.ReadToEnd().Trim() ?? "";
+}
+
+static (string Owner, string Repo) ParseOwnerRepo(string remoteUrl)
+{
+    // Handles both HTTPS (github.com/) and SSH (github.com:) formats
+    string[] parts = remoteUrl.Split("github.com/");
+
+    if (parts.Length < 2)
+    {
+        parts = remoteUrl.Split("github.com:");
+    }
+
+    string path = parts[1].EndsWith(".git") ? parts[1][..^4] : parts[1];
+    string[] segments = path.Split('/');
+    return (segments[0], segments[1]);
+}
+
+static string GenerateGitHubJwt(string clientId, string privateKeyPath)
+{
+    string pemText = File.ReadAllText(privateKeyPath);
+    using var rsa = RSA.Create();
+    rsa.ImportFromPem(pemText);
+
+    long iat = DateTimeOffset.UtcNow.AddSeconds(-60).ToUnixTimeSeconds();
+    long exp = DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeSeconds();
+
+    string header = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(
+        new { alg = "RS256", typ = "JWT" }));
+
+    string payload = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(
+        new { iat, exp, iss = clientId }));
+
+    byte[] signature = rsa.SignData(
+        Encoding.UTF8.GetBytes($"{header}.{payload}"),
+        HashAlgorithmName.SHA256,
+        RSASignaturePadding.Pkcs1);
+
+    return $"{header}.{payload}.{Base64UrlEncode(signature)}";
+}
+
+static string Base64UrlEncode(byte[] data)
+{
+    return Convert.ToBase64String(data)
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_');
 }
