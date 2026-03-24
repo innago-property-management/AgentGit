@@ -3,7 +3,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="${SCRIPT_DIR}/../src/AgentGit"
+BIN_DIR="${SCRIPT_DIR}/../bin"
 
 repo_dir="$1"
 shift
@@ -21,6 +21,6 @@ fi
 
 export AGENT_GIT_REPO="$repo_dir"
 
-pushd "$PROJECT_DIR" > /dev/null
-dotnet run -- "$@"
+pushd "${BIN_DIR}" > /dev/null
+./AgentGit "$@"
 popd > /dev/null
