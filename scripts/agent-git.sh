@@ -24,3 +24,16 @@ export AGENT_GIT_REPO="$repo_dir"
 pushd "${BIN_DIR}" > /dev/null
 ./AgentGit "$@"
 popd > /dev/null
+
+# After successful push, check for an open PR if watch is requested
+if [[ "${AGENT_GIT_WATCH_PR:-false}" == "true" ]]; then
+    pushd "$repo_dir" > /dev/null
+    pr_num=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "")
+    if [[ -n "$pr_num" ]]; then
+        repo=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || echo "")
+        if [[ -n "$repo" ]]; then
+            echo "{\"event\":\"watch_request\",\"repo\":\"$repo\",\"pr\":\"$pr_num\"}"
+        fi
+    fi
+    popd > /dev/null
+fi
