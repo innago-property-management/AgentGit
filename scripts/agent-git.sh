@@ -25,8 +25,8 @@ pushd "${BIN_DIR}" > /dev/null
 ./AgentGit "$@"
 popd > /dev/null
 
-# After successful push, check for an open PR if watch is requested
-if [[ "${AGENT_GIT_WATCH_PR:-false}" == "true" ]]; then
+# After successful push, check for an open PR (default: on, set AGENT_GIT_WATCH_PR=false to skip)
+if [[ "${AGENT_GIT_WATCH_PR:-true}" != "false" ]]; then
     pushd "$repo_dir" > /dev/null
     pr_num=$(gh pr view --json number --jq '.number' 2>/dev/null || echo "")
     if [[ -n "$pr_num" ]]; then
