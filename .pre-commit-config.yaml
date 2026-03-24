@@ -1,4 +1,12 @@
 repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks-docker
+        name: Detect hardcoded secrets
+        description: Detect hardcoded secrets using Gitleaks
+        entry: zricethezav/gitleaks protect
+        language: docker_image
   - repo: local
     hooks:
       - id: ledger-add
@@ -7,6 +15,7 @@ repos:
         language: script
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
       - id: ledger-finalize
         name: Ledger finalize
         entry: ledger-finalize.sh
@@ -14,10 +23,3 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [post-commit]
-      - id: ledger-rewrite
-        name: Ledger rewrite
-        entry: ledger-rewrite.sh
-        language: script
-        pass_filenames: false
-        always_run: true
-        stages: [post-rewrite]
