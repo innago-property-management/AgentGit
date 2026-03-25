@@ -40,7 +40,9 @@ if [[ "${AGENT_GIT_WATCH_PR:-true}" != "false" ]]; then
     if [[ -n "$pr_num" ]]; then
         repo=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || echo "")
         if [[ -n "$repo" ]]; then
-            echo "{\"event\":\"watch_request\",\"repo\":\"$repo\",\"pr\":\"$pr_num\"}"
+            cat <<WATCH_EOF
+{"event":"watch_request","repo":"$repo","pr":"$pr_num","action":"To monitor this PR for CI and reviews, call mcp-langchain-bridge execute_tool with toolName='watch', serverName='pr-watch', arguments={'repo':'$repo','pr':'$pr_num'}"}
+WATCH_EOF
         fi
     fi
     popd > /dev/null
