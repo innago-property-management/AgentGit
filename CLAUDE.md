@@ -47,7 +47,13 @@ git commit -m "message"          # hook rewrites to agent-git
 
 The watch_request JSON is emitted to stdout by default. Set `AGENT_GIT_WATCH_PR=false` to suppress.
 
+### Commit → Push → Auto-PR (Innago repos)
+
+Innago repos with `.github/workflows/auto-pr.yml` automatically create a PR when a branch is pushed. No `gh pr create` needed — just push and the watch_request will fire on the next commit once the PR exists.
+
 ### Commit → Push → Create PR → Watch
+
+For repos without auto-PR (like `stand-sure` personal repos):
 
 ```
 git add <files>
