@@ -3,7 +3,15 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${SCRIPT_DIR}/../src/AgentGit"
 BIN_DIR="${SCRIPT_DIR}/../bin"
+
+# Rebuild if source is newer than published binary
+if [[ "${PROJECT_DIR}/Program.cs" -nt "${BIN_DIR}/AgentGit" ]] || \
+   [[ "${PROJECT_DIR}/appsettings.json" -nt "${BIN_DIR}/appsettings.json" ]] || \
+   [[ "${PROJECT_DIR}/AgentGit.csproj" -nt "${BIN_DIR}/AgentGit" ]]; then
+    dotnet publish "${PROJECT_DIR}/AgentGit.csproj" -c Release -o "${BIN_DIR}" --nologo -v quiet 2>&1
+fi
 
 repo_dir="$1"
 shift
