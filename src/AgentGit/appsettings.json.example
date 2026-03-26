@@ -1,0 +1,8 @@
+{
+  "GitHubApp": {
+    "ClientId": "YOUR_GITHUB_APP_CLIENT_ID",
+    "AppId": 0,
+    "PrivateKeyPath": "./private-key.pem",
+    "AgentName": "your-app-name"
+  }
+}
