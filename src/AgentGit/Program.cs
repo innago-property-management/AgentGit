@@ -143,7 +143,10 @@ pushInfo.EnvironmentVariables["AGENTGIT_TOKEN"] = token;
 pushInfo.EnvironmentVariables["GIT_ASKPASS"] = askPassScript;
 pushInfo.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
 
+// Disable credential helpers so they don't override GIT_ASKPASS (e.g., macOS keychain)
 string pushUrlWithUser = $"https://x-access-token@github.com/{owner}/{repo}.git";
+pushInfo.ArgumentList.Add("-c");
+pushInfo.ArgumentList.Add("credential.helper=");
 pushInfo.ArgumentList.Add("push");
 pushInfo.ArgumentList.Add(pushUrlWithUser);
 pushInfo.ArgumentList.Add(currentBranch);
