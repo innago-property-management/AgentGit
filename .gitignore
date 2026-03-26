@@ -1,4 +1,10 @@
 bin/
 obj/
 .idea/
-bin/
+
+# Secrets — never commit these
+*.pem
+appsettings.json
+appsettings.*.json
+!appsettings.json.example
+.env

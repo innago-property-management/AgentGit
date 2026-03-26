@@ -30,7 +30,11 @@ fi
 export AGENT_GIT_REPO="$repo_dir"
 
 pushd "${BIN_DIR}" > /dev/null
-./AgentGit "$@"
+if command -v fnox &> /dev/null; then
+    fnox exec -- ./AgentGit "$@"
+else
+    ./AgentGit "$@"
+fi
 popd > /dev/null
 
 # After successful push, check for an open PR (default: on, set AGENT_GIT_WATCH_PR=false to skip)
