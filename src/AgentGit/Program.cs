@@ -261,3 +261,4 @@ static string Base64UrlEncode(byte[] data)
         .Replace('+', '-')
         .Replace('/', '_');
 }
+
