@@ -82,6 +82,7 @@ var commitInfo = new ProcessStartInfo
     WorkingDirectory = repoPath,
     UseShellExecute = false,
     RedirectStandardOutput = true,
+    RedirectStandardError = true,
     EnvironmentVariables =
     {
         ["GIT_AUTHOR_NAME"] = botName,
@@ -103,10 +104,20 @@ logger.Committing(botName, string.Join(" ", commitArgs));
 
 using (Process? commitProcess = Process.Start(commitInfo))
 {
+    string commitStdout = commitProcess?.StandardOutput.ReadToEnd() ?? "";
+    string commitStderr = commitProcess?.StandardError.ReadToEnd() ?? "";
     commitProcess?.WaitForExit();
     if (commitProcess is { ExitCode: not 0 })
     {
         logger.CommitFailed(commitProcess.ExitCode);
+        if (!string.IsNullOrWhiteSpace(commitStdout))
+        {
+            logger.LogError("git commit stdout: {Output}", commitStdout);
+        }
+        if (!string.IsNullOrWhiteSpace(commitStderr))
+        {
+            logger.LogError("git commit stderr: {Error}", commitStderr);
+        }
         return commitProcess.ExitCode;
     }
 }
@@ -119,6 +130,7 @@ var pushInfo = new ProcessStartInfo
     WorkingDirectory = repoPath,
     UseShellExecute = false,
     RedirectStandardOutput = true,
+    RedirectStandardError = true,
     EnvironmentVariables =
     {
         ["GIT_AUTHOR_NAME"] = botName,
@@ -132,10 +144,16 @@ var pushInfo = new ProcessStartInfo
 logger.Pushing(owner, repo, currentBranch);
 
 // Token passed via env var + GIT_ASKPASS — keeps it out of ps aux (CLI args are world-readable)
-string askPassScript = Path.Combine(Path.GetTempPath(), $"agentgit-askpass-{Environment.ProcessId}.sh");
-File.WriteAllText(askPassScript, "#!/bin/sh\necho \"$AGENTGIT_TOKEN\"\n");
-if (!OperatingSystem.IsWindows())
+string askPassScript;
+if (OperatingSystem.IsWindows())
 {
+    askPassScript = Path.Combine(Path.GetTempPath(), $"agentgit-askpass-{Environment.ProcessId}.cmd");
+    File.WriteAllText(askPassScript, "@echo %AGENTGIT_TOKEN%\r\n");
+}
+else
+{
+    askPassScript = Path.Combine(Path.GetTempPath(), $"agentgit-askpass-{Environment.ProcessId}.sh");
+    File.WriteAllText(askPassScript, "#!/bin/sh\necho \"$AGENTGIT_TOKEN\"\n");
     File.SetUnixFileMode(askPassScript, UnixFileMode.UserRead | UnixFileMode.UserExecute);
 }
 
@@ -152,6 +170,8 @@ pushInfo.ArgumentList.Add(pushUrlWithUser);
 pushInfo.ArgumentList.Add(currentBranch);
 
 using Process? pushProcess = Process.Start(pushInfo);
+string pushStdout = pushProcess?.StandardOutput.ReadToEnd() ?? "";
+string pushStderr = pushProcess?.StandardError.ReadToEnd() ?? "";
 pushProcess?.WaitForExit();
 
 try
@@ -166,6 +186,14 @@ catch
 if (pushProcess is { ExitCode: not 0 })
 {
     logger.PushFailed(pushProcess.ExitCode);
+    if (!string.IsNullOrWhiteSpace(pushStdout))
+    {
+        logger.LogError("git push stdout: {Output}", pushStdout);
+    }
+    if (!string.IsNullOrWhiteSpace(pushStderr))
+    {
+        logger.LogError("git push stderr: {Error}", pushStderr);
+    }
     return pushProcess.ExitCode;
 }
 
