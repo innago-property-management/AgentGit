@@ -25,61 +25,114 @@ Exchange JWT for installation token
 git commit as YourApp[bot] with bot email
     |
     v
-git push with token auth (via http.extraHeader)
+git push with token auth (via GIT_ASKPASS)
 ```
 
 Commits appear as your GitHub App bot — e.g., `stand-sure-ai[bot]` — with the proper `@users.noreply.github.com` email, just like other GitHub App bots (Dependabot, Renovate, etc.).
 
-## Prerequisites
+## Creating Your GitHub App
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- A [GitHub App](https://docs.github.com/en/apps/creating-github-apps) with:
-  - **Repository permissions:** Contents (Read & Write)
-  - A generated private key (`.pem` file)
-  - Installed on the repositories/organizations you want to commit to
-- [`gh` CLI](https://cli.github.com/) (optional, for PR watch features)
+You need a GitHub App to give your agent its own identity. This takes about 5 minutes.
+
+### Step 1: Register the App
+
+1. Go to **GitHub Settings** > **Developer settings** > **GitHub Apps** > **New GitHub App**
+   - Direct link: https://github.com/settings/apps/new
+2. Fill in:
+   - **GitHub App name**: Something like `my-agent` or `my-org-ai-bot` (this becomes the `[bot]` name in commits)
+   - **Homepage URL**: Your repo URL or any URL
+   - **Webhook**: Uncheck "Active" (AgentGit doesn't need webhooks)
+
+### Step 2: Set Permissions
+
+Under **Repository permissions**, set:
+
+| Permission | Access | Why |
+|-----------|--------|-----|
+| **Contents** | Read & Write | Commit and push to repositories |
+
+That's it — no other permissions needed.
+
+### Step 3: Choose Installation Scope
+
+Under **Where can this GitHub App be installed?**:
+
+- **Only on this account** — if you only need it for your personal repos
+- **Any account** — if you want to install it on organizations too
+
+Click **Create GitHub App**.
+
+### Step 4: Note Your App Credentials
+
+After creation, you'll be on the app's settings page. Note these values:
+
+| Setting | Where to find it | Example |
+|---------|-----------------|---------|
+| **App ID** | General > About > App ID | `3167794` |
+| **Client ID** | General > About > Client ID | `Iv23li8yGhLhlDV5cm0A` |
+| **App name** | The slug in the URL (`github.com/settings/apps/<name>`) | `my-agent` |
+
+### Step 5: Generate a Private Key
+
+1. On the app settings page, scroll to **Private keys**
+2. Click **Generate a private key**
+3. A `.pem` file downloads — save it somewhere secure
+4. Set permissions: `chmod 600 /path/to/your-key.pem` (AgentGit enforces this)
+
+### Step 6: Install the App on Your Repositories
+
+1. In the app settings, click **Install App** in the left sidebar
+2. Choose the account/organization
+3. Select **All repositories** or **Only select repositories**
+4. Click **Install**
+
+Repeat for each organization you want the agent to commit to. AgentGit dynamically looks up the installation for each repo, so a single app can work across multiple orgs.
 
 ## Setup
 
-1. **Clone and build:**
+### Prerequisites
 
-   ```bash
-   git clone https://github.com/stand-sure/stand-sure-ai.git
-   cd stand-sure-ai
-   dotnet build AgentGit.slnx
-   ```
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) (for building from source)
+- A GitHub App (see above)
+- [`gh` CLI](https://cli.github.com/) (optional, for PR watch features)
 
-2. **Configure your GitHub App credentials:**
+### Build
 
-   ```bash
-   cp src/AgentGit/appsettings.json.example src/AgentGit/appsettings.json
-   ```
+```bash
+git clone https://github.com/innago-property-management/AgentGit.git
+cd AgentGit
+dotnet publish src/AgentGit/AgentGit.csproj -c Release -o bin
+```
 
-   Edit `src/AgentGit/appsettings.json`:
+This produces a native AOT binary (~8MB, no .NET runtime required at runtime).
 
-   ```json
-   {
-     "GitHubApp": {
-       "ClientId": "your-github-app-client-id",
-       "AppId": 123456,
-       "PrivateKeyPath": "/path/to/your-app.private-key.pem",
-       "AgentName": "your-app-name"
-     }
-   }
-   ```
+### Configure
 
-   | Setting | Where to find it |
-   |---------|-----------------|
-   | `ClientId` | GitHub App settings > General > Client ID |
-   | `AppId` | GitHub App settings > General > App ID |
-   | `PrivateKeyPath` | Absolute path to the `.pem` you generated for the app |
-   | `AgentName` | The slug name of your GitHub App (lowercase, hyphens) |
+```bash
+cp src/AgentGit/appsettings.json.example src/AgentGit/appsettings.json
+```
 
-3. **Publish the release binary:**
+Edit `src/AgentGit/appsettings.json`:
 
-   ```bash
-   dotnet publish src/AgentGit/AgentGit.csproj -c Release -o bin
-   ```
+```json
+{
+  "GitHubApp": {
+    "ClientId": "your-github-app-client-id",
+    "AppId": 123456,
+    "PrivateKeyPath": "/path/to/your-app.private-key.pem",
+    "AgentName": "your-app-name"
+  }
+}
+```
+
+Alternatively, set environment variables (useful for CI or secret managers):
+
+```bash
+export GitHubApp__ClientId="your-client-id"
+export GitHubApp__AppId="123456"
+export GitHubApp__PrivateKeyPath="/path/to/key.pem"
+export GitHubApp__AgentName="your-app-name"
+```
 
 ## Usage
 
@@ -106,14 +159,21 @@ AgentGit was designed for [Claude Code](https://claude.ai/code). A `PreToolUse:B
 
 ## Architecture
 
-AgentGit is a single-file .NET console app (`src/AgentGit/Program.cs`):
+AgentGit is a .NET 10 console app published as a Native AOT binary:
 
-1. **Config** — Generic Host loads `appsettings.json` into `GitHubAppSettings` via `IOptions<T>`
-2. **JWT** — RSA private key signs a JWT with `Client ID` as `iss` (pure BCL, no external JWT libraries)
-3. **Installation lookup** — Parses `owner/repo` from git remote URL, calls `GetRepositoryInstallationForCurrent`
-4. **Token exchange** — Swaps JWT for a scoped installation access token via Octokit
-5. **Commit** — Runs `git commit` with bot identity env vars (`GIT_AUTHOR_NAME`, `GIT_COMMITTER_EMAIL`, etc.)
-6. **Push** — Runs `git push` with `http.extraHeader` for token auth (never exposes token in process args)
+1. **Config** — Generic Host loads `appsettings.json` (or env vars) into `GitHubAppSettings` via `IOptions<T>`
+2. **JWT** — `JwtGenerator` signs a JWT with RSA private key and Client ID as `iss` (pure BCL crypto, source-generated JSON)
+3. **Installation lookup** — `RemoteUrlParser` extracts `owner/repo` from git remote, `GitHubAppAuthenticator` calls the GitHub API
+4. **Token exchange** — `GitHubAppAuthenticator` swaps JWT for a scoped installation access token via direct HTTP (no Octokit)
+5. **Commit** — `GitProcessRunner` runs `git commit` with bot identity env vars (`GIT_AUTHOR_NAME`, `GIT_COMMITTER_EMAIL`, etc.)
+6. **Push** — `GitProcessRunner` runs `git push` with `GIT_ASKPASS` for token auth (token never visible in `ps aux`)
+
+### Security
+
+- Private key permissions enforced (`PrivateKeyValidator` rejects world-readable keys)
+- Token passed via `GIT_ASKPASS` + env var, never in CLI args or URLs
+- Credential helpers disabled during push to prevent keychain override
+- `AskPassScriptManager` creates temporary scripts with restrictive permissions, cleaned up after use
 
 ### Bot identity format
 
@@ -122,10 +182,12 @@ AgentGit is a single-file .NET console app (`src/AgentGit/Program.cs`):
 
 ## Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| [Octokit](https://github.com/octokit/octokit.net) | 14.0.0 | GitHub API — installation lookup and token creation |
-| [Microsoft.Extensions.Hosting](https://www.nuget.org/packages/Microsoft.Extensions.Hosting) | — | Generic Host for configuration and DI |
+| Package | Purpose |
+|---------|---------|
+| [Microsoft.Extensions.Hosting](https://www.nuget.org/packages/Microsoft.Extensions.Hosting) | Generic Host for configuration and DI |
+| [Microsoft.Extensions.Http](https://www.nuget.org/packages/Microsoft.Extensions.Http) | HttpClient factory for GitHub API calls |
+
+Zero reflection. All JSON serialization uses compile-time source generators for Native AOT compatibility.
 
 ## License
 
