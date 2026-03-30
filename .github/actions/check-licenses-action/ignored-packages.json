@@ -1,0 +1,9 @@
+[
+  "Innago.*",
+  "Microsoft.*",
+  "JUnitTestLogger",
+  "NETStandard.Library",
+  "SonarAnalyzer.CSharp",
+  "System.*",
+  "xunit.*"
+]
