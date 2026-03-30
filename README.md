@@ -68,9 +68,11 @@ After creation, you'll be on the app's settings page. Note these values:
 
 | Setting | Where to find it | Example |
 |---------|-----------------|---------|
-| **App ID** | General > About > App ID | `3167794` |
-| **Client ID** | General > About > Client ID | `Iv23li8yGhLhlDV5cm0A` |
-| **App name** | The slug in the URL (`github.com/settings/apps/<name>`) | `my-agent` |
+| **App ID** | General > About > App ID | `123456` |
+| **Client ID** | General > About > Client ID | `Iv23liXXXXXXXXXXXXXX` |
+| **App name** | The slug in the URL (see below) | `my-agent` |
+
+> **Note:** For personal apps, the settings URL is `github.com/settings/apps/<name>`. For org-owned apps, it's `github.com/organizations/<org>/settings/apps/<name>`.
 
 ### Step 5: Generate a Private Key
 
@@ -111,6 +113,8 @@ This produces a native AOT binary (~8MB, no .NET runtime required at runtime).
 ```bash
 cp src/AgentGit/appsettings.json.example src/AgentGit/appsettings.json
 ```
+
+> `appsettings.json` is gitignored — your credentials won't be accidentally committed.
 
 Edit `src/AgentGit/appsettings.json`:
 
