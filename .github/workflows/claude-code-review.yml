@@ -1,0 +1,41 @@
+---
+name: PR Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+  id-token: write
+
+jobs:
+  review:
+    uses: innago-property-management/Oui-DELIVER/.github/workflows/claude-code-review.yml@main
+    with:
+      allow_approve: true
+      additional_context: |
+        AgentGit is a .NET 10 console app that gives AI agents bot identity when
+        committing and pushing to GitHub repositories. It authenticates via the
+        stand-sure-ai  GitHub App (public, installed on both  stand-sure  and
+        innago-property-management ) using JWT → installation token flow.
+
+        Intended usage: A Claude Code hook intercepts git commit globally and
+        rewrites it to use agent-git. Agents don't need to know about this tool — 
+        plain git commit just works with bot identity.
+
+        Commit → Push → Watch
+          git add <files>
+
+          git commit -m "message"
+          # hook rewrites to agent-git
+          # agent-git: commit (bot identity) →
+
+          push (installation token)
+          # wrapper emits:
+          {"event":"watch_request","repo":"owner/repo","pr":"123"}
+          # (if a PR exists for the current branch)
+    secrets:
+      anthropicKey: ${{ secrets.ANTHROPIC_API_KEY }}

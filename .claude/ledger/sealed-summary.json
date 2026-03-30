@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "chains": {
+    "session-1774367606-main": {
+      "branch": "main",
+      "worktree": "/Volumes/Repos/stand-sure-ai",
+      "started_at": "2026-03-24T15:53:26.061645+00:00",
+      "agent": "unknown",
+      "chain_hash": "sha256:fffac7f495204d39d7016a346cbc88e1a0d53fd03c338e5638a36e9f14fcd945",
+      "sealed": true,
+      "sealed_at": "2026-03-30T16:35:59.240518+00:00",
+      "sealed_by_identity": "chris@innago.com",
+      "sealed_by_commit": "2c038452889ce9d259bc12eeee1db9d576750fe1"
+    }
+  }
+}
