@@ -9,27 +9,36 @@ internal static class JwtGenerator
 {
     internal static string Generate(string clientId, string privateKeyPath)
     {
-        string pemText = File.ReadAllText(privateKeyPath);
-        using var rsa = RSA.Create();
-        rsa.ImportFromPem(pemText);
+        byte[] pemBytes = File.ReadAllBytes(privateKeyPath);
+        char[] pemChars = Encoding.UTF8.GetChars(pemBytes);
+        try
+        {
+            using var rsa = RSA.Create();
+            rsa.ImportFromPem(pemChars);
 
-        long iat = DateTimeOffset.UtcNow.AddSeconds(-60).ToUnixTimeSeconds();
-        long exp = DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeSeconds();
+            long iat = DateTimeOffset.UtcNow.AddSeconds(-60).ToUnixTimeSeconds();
+            long exp = DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeSeconds();
 
-        string header = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(
-            new JwtHeader { Alg = "RS256", Typ = "JWT" },
-            JwtJsonContext.Default.JwtHeader));
+            string header = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(
+                new JwtHeader { Alg = "RS256", Typ = "JWT" },
+                JwtJsonContext.Default.JwtHeader));
 
-        string payload = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(
-            new JwtPayload { Iat = iat, Exp = exp, Iss = clientId },
-            JwtJsonContext.Default.JwtPayload));
+            string payload = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(
+                new JwtPayload { Iat = iat, Exp = exp, Iss = clientId },
+                JwtJsonContext.Default.JwtPayload));
 
-        byte[] signature = rsa.SignData(
-            Encoding.UTF8.GetBytes($"{header}.{payload}"),
-            HashAlgorithmName.SHA256,
-            RSASignaturePadding.Pkcs1);
+            byte[] signature = rsa.SignData(
+                Encoding.UTF8.GetBytes($"{header}.{payload}"),
+                HashAlgorithmName.SHA256,
+                RSASignaturePadding.Pkcs1);
 
-        return $"{header}.{payload}.{Base64UrlEncode(signature)}";
+            return $"{header}.{payload}.{Base64UrlEncode(signature)}";
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(pemBytes);
+            Array.Clear(pemChars);
+        }
     }
 
     private static string Base64UrlEncode(byte[] data)

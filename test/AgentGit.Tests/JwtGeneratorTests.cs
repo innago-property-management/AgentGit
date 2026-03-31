@@ -87,6 +87,18 @@ public class JwtGeneratorTests : IDisposable
         valid.Should().BeTrue();
     }
 
+    [Fact]
+    public void Generate_succeeds_when_called_twice_with_same_key()
+    {
+        // Verifies key material cleanup doesn't corrupt state for subsequent calls
+        string jwt1 = JwtGenerator.Generate("client-1", _keyPath);
+        string jwt2 = JwtGenerator.Generate("client-2", _keyPath);
+
+        jwt1.Should().NotBe(jwt2);
+        jwt1.Split('.').Should().HaveCount(3);
+        jwt2.Split('.').Should().HaveCount(3);
+    }
+
     public void Dispose()
     {
         File.Delete(_keyPath);

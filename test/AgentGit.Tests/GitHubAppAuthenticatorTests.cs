@@ -50,6 +50,36 @@ public class GitHubAppAuthenticatorTests
         await act.Should().ThrowAsync<HttpRequestException>();
     }
 
+    [Fact]
+    public async Task AuthenticateAsync_does_not_accumulate_default_headers()
+    {
+        var installationJson = JsonSerializer.Serialize(
+            new InstallationResponse { Id = 1 },
+            GitHubApiJsonContext.Default.InstallationResponse);
+
+        var tokenJson = JsonSerializer.Serialize(
+            new AccessTokenResponse { Token = "tok1", ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) },
+            GitHubApiJsonContext.Default.AccessTokenResponse);
+
+        var handler = new FakeHttpHandler(
+        [
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(installationJson, System.Text.Encoding.UTF8, "application/json") },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson, System.Text.Encoding.UTF8, "application/json") },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(installationJson, System.Text.Encoding.UTF8, "application/json") },
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(tokenJson, System.Text.Encoding.UTF8, "application/json") },
+        ]);
+
+        var httpClient = new HttpClient(handler);
+        var sut = new GitHubAppAuthenticator(httpClient);
+
+        await sut.AuthenticateAsync("jwt1", "o", "r", TestContext.Current.CancellationToken);
+        await sut.AuthenticateAsync("jwt2", "o", "r", TestContext.Current.CancellationToken);
+
+        // Per-request headers — DefaultRequestHeaders should remain empty
+        httpClient.DefaultRequestHeaders.Authorization.Should().BeNull();
+        httpClient.DefaultRequestHeaders.UserAgent.Should().BeEmpty();
+    }
+
     private sealed class FakeHttpHandler(List<HttpResponseMessage> responses) : HttpMessageHandler
     {
         private int _callIndex;
