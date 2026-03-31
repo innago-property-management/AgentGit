@@ -10,6 +10,7 @@ internal sealed class GitProcessRunner : IGitProcessRunner
         {
             WorkingDirectory = repoPath,
             RedirectStandardOutput = true,
+            RedirectStandardError = true,
             UseShellExecute = false,
         };
 
@@ -18,7 +19,16 @@ internal sealed class GitProcessRunner : IGitProcessRunner
         psi.ArgumentList.Add("HEAD");
 
         using Process? process = Process.Start(psi);
-        return process?.StandardOutput.ReadToEnd().Trim() ?? "main";
+        if (process is null)
+        {
+            return "main";
+        }
+
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+        string output = process.StandardOutput.ReadToEnd().Trim();
+        stderrTask.GetAwaiter().GetResult();
+        process.WaitForExit();
+        return output;
     }
 
     public string GetRemoteUrl(string repoPath)
@@ -27,6 +37,7 @@ internal sealed class GitProcessRunner : IGitProcessRunner
         {
             WorkingDirectory = repoPath,
             RedirectStandardOutput = true,
+            RedirectStandardError = true,
             UseShellExecute = false,
         };
 
@@ -35,7 +46,16 @@ internal sealed class GitProcessRunner : IGitProcessRunner
         psi.ArgumentList.Add("origin");
 
         using Process? process = Process.Start(psi);
-        return process?.StandardOutput.ReadToEnd().Trim() ?? "";
+        if (process is null)
+        {
+            return "";
+        }
+
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+        string output = process.StandardOutput.ReadToEnd().Trim();
+        stderrTask.GetAwaiter().GetResult();
+        process.WaitForExit();
+        return output;
     }
 
     public int Commit(string repoPath, string botName, string botEmail, string[] args)
@@ -64,10 +84,17 @@ internal sealed class GitProcessRunner : IGitProcessRunner
         }
 
         using Process? process = Process.Start(psi);
-        process?.StandardOutput.ReadToEnd();
-        process?.StandardError.ReadToEnd();
-        process?.WaitForExit();
-        return process?.ExitCode ?? 1;
+        if (process is null)
+        {
+            return 1;
+        }
+
+        // Read stderr async to avoid deadlock when git fills the buffer
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+        string stdout = process.StandardOutput.ReadToEnd();
+        string stderr = stderrTask.GetAwaiter().GetResult();
+        process.WaitForExit();
+        return process.ExitCode;
     }
 
     public int Push(string repoPath, string botName, string botEmail, string token, string owner, string repo, string branch)
@@ -102,10 +129,17 @@ internal sealed class GitProcessRunner : IGitProcessRunner
             psi.ArgumentList.Add(branch);
 
             using Process? process = Process.Start(psi);
-            process?.StandardOutput.ReadToEnd();
-            process?.StandardError.ReadToEnd();
-            process?.WaitForExit();
-            return process?.ExitCode ?? 1;
+            if (process is null)
+            {
+                return 1;
+            }
+
+            // Read stderr async to avoid deadlock — git push writes progress to stderr
+            Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+            string stdout = process.StandardOutput.ReadToEnd();
+            string stderr = stderrTask.GetAwaiter().GetResult();
+            process.WaitForExit();
+            return process.ExitCode;
         }
         finally
         {

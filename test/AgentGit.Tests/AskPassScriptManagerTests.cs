@@ -60,6 +60,21 @@ public class AskPassScriptManagerTests : IDisposable
         act.Should().NotThrow();
     }
 
+    [Fact]
+    public void Create_overwrites_stale_file_from_pid_reuse()
+    {
+        // Simulate a stale file from a prior crashed run
+        _scriptPath = AskPassScriptManager.Create();
+        string firstPath = _scriptPath;
+        File.Exists(firstPath).Should().BeTrue();
+
+        // Second call with same PID should succeed, not throw IOException
+        string secondPath = AskPassScriptManager.Create();
+        secondPath.Should().Be(firstPath);
+        File.Exists(secondPath).Should().BeTrue();
+        _scriptPath = secondPath;
+    }
+
     public void Dispose()
     {
         if (_scriptPath is not null && File.Exists(_scriptPath))

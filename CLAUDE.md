@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-AgentGit is a .NET 10 console app that gives AI agents bot identity when committing and pushing to GitHub repositories. It authenticates via the `stand-sure-ai` GitHub App (public, installed on both `stand-sure` and `innago-property-management`) using JWT → installation token flow.
+AgentGit is a .NET 10 Native AOT console app that gives AI agents bot identity when committing and pushing to GitHub repositories. It authenticates via the `stand-sure-ai` GitHub App (public, installed on both `stand-sure` and `innago-property-management`) using JWT → installation token flow.
 
 ## Build & Publish
 
@@ -12,11 +12,14 @@ AgentGit is a .NET 10 console app that gives AI agents bot identity when committ
 # Build
 dotnet build AgentGit.slnx
 
-# Publish release binary (used by the wrapper script)
+# Run tests
+dotnet test AgentGit.slnx
+
+# Publish Native AOT binary (used by the wrapper script)
 dotnet publish src/AgentGit/AgentGit.csproj -c Release -o bin
 ```
 
-Uses the XML-based `.slnx` solution format (not `.sln`).
+Uses the XML-based `.slnx` solution format (not `.sln`). Produces an ~8MB native arm64 binary.
 
 ## Usage
 
@@ -71,33 +74,47 @@ gh pr create --title "..." ...   # agent creates PR separately
 
 ## Dependencies
 
-- **Octokit** (v14.0.0) — GitHub API client for installation lookup and token creation
 - **Microsoft.Extensions.Hosting** — Generic Host for config/DI
+- **Microsoft.Extensions.Http** — HttpClient factory for GitHub API calls
+
+No Octokit. All JSON uses source-generated `JsonSerializerContext` for AOT compatibility.
 
 ## Configuration
 
-Settings live in `src/AgentGit/appsettings.json`:
+Settings via `src/AgentGit/appsettings.json` or environment variables (`GitHubApp__*`):
 
-| Setting | Purpose |
-|---------|---------|
-| `GitHubApp:ClientId` | GitHub App Client ID (JWT issuer) |
-| `GitHubApp:AppId` | GitHub App ID (for bot email format) |
-| `GitHubApp:PrivateKeyPath` | Path to `.pem` private key file |
-| `GitHubApp:AgentName` | Bot name (used in commit identity) |
+| Setting | Env Var | Purpose |
+|---------|---------|---------|
+| `GitHubApp:ClientId` | `GitHubApp__ClientId` | GitHub App Client ID (JWT issuer) |
+| `GitHubApp:AppId` | `GitHubApp__AppId` | GitHub App ID (for bot email format) |
+| `GitHubApp:PrivateKeyPath` | `GitHubApp__PrivateKeyPath` | Path to `.pem` private key file |
+| `GitHubApp:AgentName` | `GitHubApp__AgentName` | Bot name (used in commit identity) |
 
-Installation ID is resolved dynamically from the target repo's remote — no hardcoding needed.
+`appsettings.json` is gitignored. Use `fnox exec` or env vars for secret management. Installation ID is resolved dynamically from the target repo's remote.
 
 ## Architecture
 
-`src/AgentGit/Program.cs` — single-file top-level program:
+Native AOT binary with single-responsibility internal classes:
 
+| Class | Responsibility |
+|-------|---------------|
+| `Program.cs` | DI wiring + orchestration (thin) |
+| `JwtGenerator` | RSA JWT creation with source-gen JSON |
+| `RemoteUrlParser` | Parse owner/repo from git remote URL |
+| `GitHubAppAuthenticator` / `IGitHubAppAuthenticator` | Installation lookup + token exchange via HttpClient |
+| `GitProcessRunner` / `IGitProcessRunner` | Git commit, push, branch, remote operations |
+| `PrivateKeyValidator` | File existence + Unix permission checks |
+| `AskPassScriptManager` | Cross-platform askpass script lifecycle |
+| `LoggerMessages` | LoggerMessage source generator for structured logging |
+| `GitHubAppSettings` | IOptions<T> configuration model |
+
+**Flow:**
 1. Load config via Generic Host + `IOptions<GitHubAppSettings>`
-2. Generate JWT from private key using BCL crypto (`System.Security.Cryptography`) with Client ID as `iss`
-3. Parse `owner/repo` from git remote URL (handles both HTTPS and SSH)
-4. Look up installation dynamically via `GetRepositoryInstallationForCurrent(owner, repo)`
-5. Exchange JWT for installation access token via Octokit
-6. `git commit` with `ArgumentList` (preserves quoting) and bot identity env vars
-7. `git push` to authenticated URL with current branch detection
+2. Validate private key permissions (`PrivateKeyValidator`)
+3. Parse `owner/repo` from git remote (`RemoteUrlParser`)
+4. Generate JWT (`JwtGenerator`) and exchange for installation token (`GitHubAppAuthenticator`)
+5. `git commit` with bot identity env vars (`GitProcessRunner`)
+6. `git push` via `GIT_ASKPASS` — token never in CLI args or `ps aux` (`GitProcessRunner`)
 
 Bot identity format: `{agentName}[bot]` / `{appId}+{agentName}[bot]@users.noreply.github.com`
 
