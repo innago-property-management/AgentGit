@@ -11,6 +11,17 @@
       "sealed_at": "2026-03-30T16:35:59.240518+00:00",
       "sealed_by_identity": "chris@innago.com",
       "sealed_by_commit": "2c038452889ce9d259bc12eeee1db9d576750fe1"
+    },
+    "session-1774888562-feat-aot-refactor": {
+      "branch": "feat/aot-refactor",
+      "worktree": "/Users/christopheranderson/repos/stand-sure-ai",
+      "started_at": "2026-03-30T16:36:02.451087+00:00",
+      "agent": "unknown",
+      "chain_hash": "sha256:10c5ad7925ab20ae816f43051d5a20920b791ddeae98ae8b46adc59cc3122137",
+      "sealed": true,
+      "sealed_at": "2026-04-22T20:58:34.288634+00:00",
+      "sealed_by_identity": "chris@innago.com",
+      "sealed_by_commit": "93b5c49288f24d9312921688d4d1b8e1055fdb78"
     }
   }
 }
