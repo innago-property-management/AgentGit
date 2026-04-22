@@ -22,7 +22,7 @@ if [[ -z "$repo_dir" ]]; then
     exit 1
 fi
 
-if [[ ! -d "$repo_dir/.git" ]]; then
+if [[ ! -e "$repo_dir/.git" ]]; then
     echo "Error: Not a git repository: $repo_dir"
     exit 1
 fi
