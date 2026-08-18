@@ -1,3 +1,14 @@
+# Providers must be declared HERE, not inherited from ~/fnox.toml.
+# agent-git.sh does `pushd bin/` before `fnox exec`, so fnox resolves config from
+# this repo and stops — it never reads the home config. Without this block every
+# secret below fails with "Provider 'age' not configured in profile 'default'"
+# and AgentGit authenticates with nothing.
+default_provider = "age"
+
+[providers.age]
+type = "age"
+recipients = ["age13fqwc4rlyqje2vscrg95qz54vv2n3ygthr6602xf9hkxw4h9gq2q4ldegw"]
+
 [secrets]
 GitHubApp__ClientId= { provider = "age", value = "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBTc1JnNkdSYWFLWnRJSy9OMFdVZDBtUFQ3akNuRFFaYVhjdUxucHh3akhJCmxjeUUxWW9BM0NtZC9GQ29wei9kT2NsT2lYZ3RySkRSRUQ5WVhzSkZyelEKLT4gKSFDVWY6PkMtZ3JlYXNlID07LkB0OiA1YVJ1YSpATSA6c3hiZ2VJVSBJSTF1YTM0CmJudXJIOXAvK2dmeWtmWE5PR2dHbWUxQVhJRk0rRXN1Y2VNakZhSms2cVh3T042d1lqTzJaV3B3YlcvSTlFYnEKZG80NUNPSmV2L1k5ZW9FQmRIclhrdwotLS0gbkNXay9YUjBzb1F3QlB3c0pVWWhmaVlwUHpESCtpNXBldkVpMFc2RW5QRQqvjgyPgemvbP3MzRisEzqGDJsNgWDaRf57nvNBdcZ4HBJ7mgQpUGSBPmbI9i4+dQ1FeSqd" }
 GitHubApp__AppId= { provider = "age", value = "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAwd3duR1FVU3BCV2Y2UWRhOTBRWDNwOGdaSURJQ0F5L0R2TisyWkZCeXc0CkRyMExBT1RQeXdVdUxjSldmbjZWL2NjTkNxYzdINThWZHdOY3BQYWtyUFEKLT4gZlhbMFJ3by1ncmVhc2UgJkA4NT4KTkJ2ZUpIY0hzZnlvVmhyYkY0WTNEU3h2NE50eThaNW0KLS0tIHhrbm5maHBYRkxmaDl5VXNFNVA4RStNM3NGTXFJL0VzaWRRNVhWSno5ZUEK7tGB71qlR1oXGiDDH49V71pS14RBGD0PB0tt4LFY0ZTtkmpEjDhf" }

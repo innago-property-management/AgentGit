@@ -8,3 +8,5 @@ appsettings.json
 appsettings.*.json
 !appsettings.json.example
 .env
+src/AgentGit/.DS_Store
+.DS_Store/
